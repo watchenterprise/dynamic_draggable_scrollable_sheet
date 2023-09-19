@@ -16,6 +16,16 @@ class DynamicDraggableScrollableController extends ChangeNotifier {
     return _attachedController!.extent.currentPixels;
   }
 
+  List<double> get snapPixels {
+    _assertAttached();
+    return _attachedController!.extent.snapPixels;
+  }
+
+  double? get contentPixels {
+    _assertAttached();
+    return _attachedController!.extent.contentPixels;
+  }
+
   /// Returns Whether any [DraggableScrollableController] objects have attached themselves to the
   /// [DynamicDraggableScrollableSheet].
   ///
@@ -429,6 +439,7 @@ class _DynamicDraggableSheetExtent {
   _DynamicDraggableSheetExtent({
     required this.minPixels,
     required this.maxPixels,
+    required this.contentPixels,
     required this.snap,
     required this.snapPixels,
     required this.initialPixels,
@@ -450,6 +461,7 @@ class _DynamicDraggableSheetExtent {
 
   final double minPixels;
   final double maxPixels;
+  final double? contentPixels;
   final bool snap;
   final List<double> snapPixels;
   final Duration? snapAnimationDuration;
@@ -540,6 +552,7 @@ class _DynamicDraggableSheetExtent {
   _DynamicDraggableSheetExtent copyWith({
     required double minPixels,
     required double maxPixels,
+    required double? contentPixels,
     required bool snap,
     required List<double> snapPixels,
     required double initialPixels,
@@ -549,6 +562,7 @@ class _DynamicDraggableSheetExtent {
     return _DynamicDraggableSheetExtent(
       minPixels: minPixels,
       maxPixels: maxPixels,
+      contentPixels: contentPixels,
       snap: snap,
       snapPixels: snapPixels,
       snapAnimationDuration: snapAnimationDuration,
@@ -894,6 +908,7 @@ class _DynamicDraggableScrollableSheetState
     _extent = _DynamicDraggableSheetExtent(
       minPixels: widget.minChildSize,
       maxPixels: widget.maxChildSize,
+      contentPixels: _contentSnapSize,
       snap: true,
       initialPixels: widget.initialChildSize,
       snapPixels: _impliedSnapSizes(),
@@ -940,6 +955,17 @@ class _DynamicDraggableScrollableSheetState
     if (extent == _contentSnapSize) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (shouldSetExtent) {
+        DynamicDraggableScrollableNotification(
+          minExtent: _extent.minPixels,
+          maxExtent: _extent.maxPixels,
+          extent: extent,
+          initialExtent: _extent.initialPixels,
+          context: context,
+          shouldCloseOnMinExtent: widget.shouldCloseOnMinExtent,
+        ).dispatch(context);
+      }
+
       setState(() {
         _contentSnapSize = extent;
         _replaceExtent(shouldSetExtent ? extent : null);
@@ -993,6 +1019,7 @@ class _DynamicDraggableScrollableSheetState
     _extent = previousExtent.copyWith(
       minPixels: widget.minChildSize,
       maxPixels: widget.maxChildSize,
+      contentPixels: _contentSnapSize,
       snap: true,
       snapPixels: _impliedSnapSizes(),
       snapAnimationDuration: widget.snapAnimationDuration,
@@ -1020,7 +1047,7 @@ typedef _OnContentExtentMeasuredFn = void Function(
 
 class _DynamicDraggableScrollableSheetRenderObjectWidget
     extends SingleChildRenderObjectWidget {
-  _DynamicDraggableScrollableSheetRenderObjectWidget({
+  const _DynamicDraggableScrollableSheetRenderObjectWidget({
     super.key,
     super.child,
     required this.extent,
@@ -1099,8 +1126,12 @@ class _DynamicDraggableScrollableSheetRenderObject extends RenderProxyBox {
     double? height;
 
     // Compute the dry extent of the content.
-    final contentExtent =
-        _contentChild?.getDryLayout(const BoxConstraints()).height;
+    final contentExtent = _contentChild
+        ?.getDryLayout(
+          constraints.copyWith(
+              minHeight: _extent.minPixels, maxHeight: _extent.maxPixels),
+        )
+        .height;
 
     if (contentExtent != null) {
       late final bool wasExtentSetToContent;
@@ -1120,7 +1151,6 @@ class _DynamicDraggableScrollableSheetRenderObject extends RenderProxyBox {
     }
 
     height ??= _extent.currentPixels;
-    print('building with: $height');
 
     child!.layout(
       constraints.copyWith(
