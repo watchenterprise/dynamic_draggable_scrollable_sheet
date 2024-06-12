@@ -279,6 +279,7 @@ class _DynamicDraggableScrollableSheetScrollPosition
   });
 
   VoidCallback? _dragCancelCallback;
+  bool _shouldApplyUserOffset = false;
   final _DynamicDraggableSheetExtent Function() getExtent;
   final Set<AnimationController> _ballisticControllers =
       <AnimationController>{};
@@ -308,11 +309,14 @@ class _DynamicDraggableScrollableSheetScrollPosition
         in _ballisticControllers) {
       ballisticController.stop();
     }
+
     super.beginActivity(newActivity);
   }
 
   @override
   void applyUserOffset(double delta) {
+    if (!_shouldApplyUserOffset) return;
+
     if (!listShouldScroll &&
         (!(extent.isAtMin || extent.isAtMax) ||
             (extent.isAtMin && delta < 0) ||
@@ -420,6 +424,7 @@ class _DynamicDraggableScrollableSheetScrollPosition
   Drag drag(DragStartDetails details, VoidCallback dragCancelCallback) {
     // Save this so we can call it later if we have to [goBallistic] on our own.
     _dragCancelCallback = dragCancelCallback;
+    _shouldApplyUserOffset = extent.currentPixels >= extent.snapPixels[1];
     return super.drag(details, dragCancelCallback);
   }
 }
